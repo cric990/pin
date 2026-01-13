@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>XamIQ | Master Console</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XamIQ | Master Admin</title>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="importmap">
@@ -17,7 +18,7 @@
     }
     </script>
 </head>
-<body class="bg-slate-900 text-white font-sans">
+<body class="bg-slate-900 text-white">
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
@@ -25,7 +26,7 @@
         import { createRoot } from 'react-dom';
         import { initializeApp } from 'firebase/app';
         import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-        import { getAuth, signInWithRedirect, GoogleAuthProvider, getRedirectResult, onAuthStateChanged, signOut } from 'firebase/auth';
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
 
         const firebaseConfig = {
           apiKey: "AIzaSyA2iHrUt8_xxvB2m8-LftaE9fTjVj_E_3Y",
@@ -43,65 +44,82 @@
         const App = () => {
             const [user, setUser] = useState(null);
             const [role, setRole] = useState(null);
+            const [error, setError] = useState(null);
             const [loading, setLoading] = useState(true);
 
             useEffect(() => {
-                getRedirectResult(auth).then(() => {
-                    onAuthStateChanged(auth, async (u) => {
-                        if (u) {
-                            setUser(u);
-                            const userRef = doc(db, "users", u.uid);
-                            const d = await getDoc(userRef);
-                            
+                return onAuthStateChanged(auth, async (u) => {
+                    if (u) {
+                        setUser(u);
+                        try {
+                            const d = await getDoc(doc(db, "users", u.uid));
                             if (d.exists()) {
                                 setRole(d.data().role);
                             } else {
-                                // Agar ID nahi hai toh create kar do
-                                await setDoc(userRef, { 
-                                    name: u.displayName, 
-                                    email: u.email, 
-                                    uid: u.uid, 
-                                    role: 'student',
-                                    createdAt: serverTimestamp() 
-                                });
+                                // Pehli baar login par auto-register
+                                await setDoc(doc(db, "users", u.uid), {
+                                    name: u.displayName,
+                                    email: u.email,
+                                    uid: u.uid,
+                                    role: 'student'
+                                }, { merge: true });
                                 setRole('student');
                             }
+                        } catch (e) {
+                            setError("Firestore Error: " + e.message);
                         }
-                        setLoading(false);
-                    });
+                    } else {
+                        setUser(null);
+                        setRole(null);
+                    }
+                    setLoading(false);
                 });
             }, []);
 
-            if (loading) return <div className="h-screen flex items-center justify-center">Loading Cloud...</div>;
+            const handleLogin = async () => {
+                setError(null);
+                const provider = new GoogleAuthProvider();
+                try {
+                    await signInWithPopup(auth, provider);
+                } catch (e) {
+                    setError("Login Failed: " + e.message);
+                }
+            };
+
+            if (loading) return <div className="h-screen flex items-center justify-center font-bold">Connecting to Cloud...</div>;
 
             if (!user) return (
-                <div className="h-screen flex flex-col items-center justify-center gap-6">
-                    <h1 className="text-3xl font-black italic">XamIQ ADMIN</h1>
-                    <button onClick={() => signInWithRedirect(auth, new GoogleAuthProvider())} className="bg-white text-black px-10 py-4 rounded-2xl font-bold">Sign in with Google</button>
+                <div className="h-screen flex flex-col items-center justify-center p-6">
+                    <h1 className="text-3xl font-black mb-8 italic text-orange-500 text-center">XamIQ MASTER LOGIN</h1>
+                    {error && <p className="bg-red-500/20 text-red-400 p-4 rounded-xl mb-6 text-xs w-full max-w-sm">{error}</p>}
+                    <button onClick={handleLogin} className="bg-white text-black px-10 py-4 rounded-2xl font-black shadow-2xl flex items-center gap-3 active:scale-95 transition-all">
+                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20"/>
+                        Login with Google
+                    </button>
+                    <p className="mt-8 text-slate-500 text-[10px] uppercase tracking-widest">Master Key Required</p>
                 </div>
             );
 
             if (role !== 'admin') return (
-                <div className="h-screen flex flex-col items-center justify-center p-10 text-center">
-                    <div className="bg-red-600 p-6 rounded-full mb-6">⚠️</div>
-                    <h1 className="text-2xl font-bold mb-4">ACCESS DENIED</h1>
-                    <p className="text-slate-400 mb-6">Aapka account admin nahi hai.</p>
-                    <div className="bg-slate-800 p-4 rounded-xl font-mono text-xs text-orange-400 mb-6">
-                        UID: {user.uid}
+                <div className="h-screen flex flex-col items-center justify-center p-8 text-center">
+                    <div className="bg-orange-600 w-20 h-20 rounded-3xl flex items-center justify-center mb-6 shadow-xl">⚠️</div>
+                    <h1 className="text-2xl font-black mb-4">NOT AN ADMIN</h1>
+                    <p className="text-slate-400 mb-6">Aapka account register ho chuka hai, par admin permission nahi hai.</p>
+                    <div className="bg-slate-800 p-4 rounded-xl font-mono text-orange-400 text-xs break-all w-full">
+                        Copy this ID: <br/> <b>{user.uid}</b>
                     </div>
-                    <p className="text-sm text-slate-500 mb-10">Firebase Console mein is UID par role: "admin" add karein aur Refresh karein.</p>
-                    <button onClick={() => signOut(auth)} className="text-slate-400 underline">Logout</button>
+                    <p className="mt-6 text-sm text-slate-500">Firebase Console mein is ID mein role: "admin" likhein aur yahan Refresh karein.</p>
+                    <button onClick={() => window.location.reload()} className="mt-8 bg-white text-black px-8 py-3 rounded-xl font-bold uppercase text-xs">I have updated my role</button>
+                    <button onClick={() => signOut(auth)} className="mt-4 text-red-400 text-xs font-bold">Logout</button>
                 </div>
             );
 
             return (
-                <div className="h-screen flex items-center justify-center">
-                    <div className="text-center">
-                        <h1 className="text-4xl font-black text-green-500">ADMIN UNLOCKED!</h1>
-                        <p className="mt-4">Welcome, {user.displayName}</p>
-                        <p className="text-slate-400 mt-10 italic">Yahan aapka poora dashboard khulega...</p>
-                        <button onClick={() => window.location.reload()} className="mt-10 bg-orange-600 px-8 py-3 rounded-xl font-bold">Open Dashboard</button>
-                    </div>
+                <div className="h-screen flex flex-col items-center justify-center bg-green-900">
+                    <h1 className="text-4xl font-black">ADMIN ACCESS GRANTED! ✅</h1>
+                    <p className="mt-4 font-bold uppercase tracking-widest text-green-300">Welcome {user.displayName}</p>
+                    <button onClick={() => alert("Ab aapka poora dashboard yahan khulega!")} className="mt-10 bg-white text-green-900 px-10 py-4 rounded-2xl font-black">OPEN CONSOLE</button>
+                    <button onClick={() => signOut(auth)} className="mt-10 text-white opacity-50 text-xs underline">Logout</button>
                 </div>
             );
         };
