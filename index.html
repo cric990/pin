@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XamIQ | Master Admin</title>
+    <title>XamIQ | Master Admin Console</title>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="importmap">
@@ -13,23 +13,35 @@
         "react-dom": "https://esm.sh/react-dom@18.2.0/client",
         "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
         "firebase/firestore": "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js",
-        "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"
+        "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
+        "lucide-react": "https://esm.sh/lucide-react@0.263.1"
       }
     }
     </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f8fafc; color: #1e293b; }
+        .admin-card { background: white; border-radius: 24px; border: 1px solid #f1f5f9; box-shadow: 0 4px 20px -5px rgba(0,0,0,0.05); }
+        .input-box { width: 100%; padding: 14px; border-radius: 14px; border: 1px solid #e2e8f0; font-weight: 600; outline: none; transition: 0.2s; background: #f8fafc; }
+        .input-box:focus { border-color: #f97316; background: #fff; box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1); }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    </style>
 </head>
-<body class="bg-slate-900 text-white">
+<body>
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect } from 'react';
+        import React, { useState, useEffect, useRef } from 'react';
         import { createRoot } from 'react-dom';
         import { initializeApp } from 'firebase/app';
-        import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc, serverTimestamp, updateDoc, getDoc, setDoc, where } from 'firebase/firestore';
+        import { getAuth, signInWithRedirect, GoogleAuthProvider, getRedirectResult, onAuthStateChanged, signOut } from 'firebase/auth';
+        import { ShieldCheck, LayoutDashboard, BookOpen, Image, Bell, Users, MessageSquare, Plus, Trash2, LogOut, Send, Save, Edit3, Loader2, ExternalLink } from 'lucide-react';
 
+        // --- ASLI CONFIG WITH YOUR NEW KEY ---
         const firebaseConfig = {
-          apiKey: "AIzaSyA2iHrUt8_xxvB2m8-LftaE9fTjVj_E_3Y",
+          apiKey: "AIzaSyBKg4vJ0-tQGUoqSLc4CIS79V2ANdwIKFg",
           authDomain: "banty-live.firebaseapp.com",
           projectId: "banty-live",
           storageBucket: "banty-live.firebasestorage.app",
@@ -43,83 +55,199 @@
 
         const App = () => {
             const [user, setUser] = useState(null);
-            const [role, setRole] = useState(null);
-            const [error, setError] = useState(null);
+            const [isAdmin, setIsAdmin] = useState(null);
             const [loading, setLoading] = useState(true);
+            const [tab, setTab] = useState('dashboard');
+            const [counts, setCounts] = useState({u:0, c:0, b:0, n:0});
 
             useEffect(() => {
+                getRedirectResult(auth).catch(e => console.error(e));
                 return onAuthStateChanged(auth, async (u) => {
                     if (u) {
-                        setUser(u);
-                        try {
-                            const d = await getDoc(doc(db, "users", u.uid));
-                            if (d.exists()) {
-                                setRole(d.data().role);
-                            } else {
-                                // Pehli baar login par auto-register
-                                await setDoc(doc(db, "users", u.uid), {
-                                    name: u.displayName,
-                                    email: u.email,
-                                    uid: u.uid,
-                                    role: 'student'
-                                }, { merge: true });
-                                setRole('student');
-                            }
-                        } catch (e) {
-                            setError("Firestore Error: " + e.message);
+                        const d = await getDoc(doc(db, "users", u.uid));
+                        if (d.exists() && d.data().role === 'admin') {
+                            setIsAdmin(true);
+                        } else {
+                            setIsAdmin(false);
+                            await setDoc(doc(db, "users", u.uid), { name: u.displayName, email: u.email, uid: u.uid }, { merge: true });
                         }
+                        setUser(u);
                     } else {
                         setUser(null);
-                        setRole(null);
+                        setIsAdmin(null);
                     }
                     setLoading(false);
                 });
             }, []);
 
-            const handleLogin = async () => {
-                setError(null);
-                const provider = new GoogleAuthProvider();
-                try {
-                    await signInWithPopup(auth, provider);
-                } catch (e) {
-                    setError("Login Failed: " + e.message);
-                }
-            };
+            useEffect(() => {
+                if(!isAdmin) return;
+                onSnapshot(collection(db, "users"), s => setCounts(v => ({...v, u: s.size})));
+                onSnapshot(collection(db, "courses"), s => setCounts(v => ({...v, c: s.size})));
+                onSnapshot(collection(db, "banners"), s => setCounts(v => ({...v, b: s.size})));
+                onSnapshot(collection(db, "notifications"), s => setCounts(v => ({...v, n: s.size})));
+            }, [isAdmin]);
 
-            if (loading) return <div className="h-screen flex items-center justify-center font-bold">Connecting to Cloud...</div>;
+            if (loading) return <div className="h-screen flex items-center justify-center font-black text-slate-400 animate-pulse">BOOTING XAMIQ CLOUD...</div>;
 
             if (!user) return (
-                <div className="h-screen flex flex-col items-center justify-center p-6">
-                    <h1 className="text-3xl font-black mb-8 italic text-orange-500 text-center">XamIQ MASTER LOGIN</h1>
-                    {error && <p className="bg-red-500/20 text-red-400 p-4 rounded-xl mb-6 text-xs w-full max-w-sm">{error}</p>}
-                    <button onClick={handleLogin} className="bg-white text-black px-10 py-4 rounded-2xl font-black shadow-2xl flex items-center gap-3 active:scale-95 transition-all">
-                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20"/>
-                        Login with Google
-                    </button>
-                    <p className="mt-8 text-slate-500 text-[10px] uppercase tracking-widest">Master Key Required</p>
+                <div className="h-screen flex flex-col items-center justify-center p-6 bg-slate-950">
+                    <div className="max-w-md w-full bg-white p-12 rounded-[3rem] text-center shadow-2xl">
+                        <div className="w-20 h-20 bg-orange-600 text-white rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl shadow-orange-500/20"><ShieldCheck size={40} /></div>
+                        <h1 className="text-3xl font-black mb-2 italic">MASTER <span className="text-orange-600">CONSOLE</span></h1>
+                        <p className="text-slate-400 text-xs mb-10 font-bold uppercase tracking-widest">Master Key Access (Gmail)</p>
+                        <button onClick={() => signInWithRedirect(auth, new GoogleAuthProvider())} className="w-full flex items-center justify-center gap-3 bg-slate-50 border-2 border-slate-100 text-slate-900 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-orange-500 transition-all">
+                            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20"/> Connect Admin Gmail
+                        </button>
+                    </div>
                 </div>
             );
 
-            if (role !== 'admin') return (
-                <div className="h-screen flex flex-col items-center justify-center p-8 text-center">
-                    <div className="bg-orange-600 w-20 h-20 rounded-3xl flex items-center justify-center mb-6 shadow-xl">⚠️</div>
-                    <h1 className="text-2xl font-black mb-4">NOT AN ADMIN</h1>
-                    <p className="text-slate-400 mb-6">Aapka account register ho chuka hai, par admin permission nahi hai.</p>
-                    <div className="bg-slate-800 p-4 rounded-xl font-mono text-orange-400 text-xs break-all w-full">
-                        Copy this ID: <br/> <b>{user.uid}</b>
+            if (isAdmin === false) return (
+                <div className="h-screen flex flex-col items-center justify-center p-8 text-center bg-white">
+                    <div className="bg-red-500 text-white p-6 rounded-full mb-6 shadow-xl"><ShieldCheck size={50}/></div>
+                    <h1 className="text-2xl font-black mb-4">NOT AUTHORIZED</h1>
+                    <p className="text-slate-400 font-bold mb-10">Aap register ho chuke hain, par Malik nahi hain.</p>
+                    <div className="bg-slate-50 p-6 rounded-2xl mb-10 w-full max-w-sm border-2 border-dashed border-slate-200">
+                        <p className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">Copy this ID to Firebase:</p>
+                        <code className="text-xs font-mono font-bold break-all text-orange-600 select-all">{user.uid}</code>
                     </div>
-                    <p className="mt-6 text-sm text-slate-500">Firebase Console mein is ID mein role: "admin" likhein aur yahan Refresh karein.</p>
-                    <button onClick={() => window.location.reload()} className="mt-8 bg-white text-black px-8 py-3 rounded-xl font-bold uppercase text-xs">I have updated my role</button>
-                    <button onClick={() => signOut(auth)} className="mt-4 text-red-400 text-xs font-bold">Logout</button>
+                    <button onClick={() => window.location.reload()} className="bg-black text-white px-10 py-4 rounded-xl font-black uppercase text-xs">Verify Role Update</button>
+                    <button onClick={() => signOut(auth)} className="mt-6 text-slate-400 text-xs font-bold underline">Logout</button>
                 </div>
             );
 
             return (
-                <div className="h-screen flex flex-col items-center justify-center bg-green-900">
-                    <h1 className="text-4xl font-black">ADMIN ACCESS GRANTED! ✅</h1>
-                    <p className="mt-4 font-bold uppercase tracking-widest text-green-300">Welcome {user.displayName}</p>
-                    <button onClick={() => alert("Ab aapka poora dashboard yahan khulega!")} className="mt-10 bg-white text-green-900 px-10 py-4 rounded-2xl font-black">OPEN CONSOLE</button>
-                    <button onClick={() => signOut(auth)} className="mt-10 text-white opacity-50 text-xs underline">Logout</button>
+                <div className="min-h-screen flex">
+                    {/* Sidebar */}
+                    <div className="w-72 bg-slate-950 p-6 flex flex-col fixed h-full shadow-2xl">
+                        <div className="mb-10 px-4 pt-4 text-white font-black text-2xl italic tracking-tighter">XAM<span className="text-orange-600">IQ</span></div>
+                        <nav className="flex-1 space-y-2">
+                            {[
+                                {id: 'dashboard', i: LayoutDashboard, l: 'Overview'},
+                                {id: 'courses', i: BookOpen, l: 'Courses'},
+                                {id: 'banners', i: Image, l: 'Banners'},
+                                {id: 'notifications', i: Bell, l: 'Broadcasts'},
+                                {id: 'chats', i: MessageSquare, l: 'Student Chat'}
+                            ].map(t => (
+                                <button key={t.id} onClick={()=>setTab(t.id)} className={`w-full flex items-center gap-3 px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${tab===t.id?'bg-orange-600 text-white shadow-lg shadow-orange-600/20':'text-slate-500 hover:bg-white/5 hover:text-white'}`}>
+                                    <t.i size={18}/> {t.l}
+                                </button>
+                            ))}
+                        </nav>
+                        <button onClick={()=>signOut(auth)} className="flex items-center gap-3 p-4 text-red-400 font-black text-xs mt-auto hover:bg-red-500/10 rounded-xl transition-all"><LogOut size={18}/> Shutdown</button>
+                    </div>
+
+                    {/* Main Area */}
+                    <div className="flex-1 ml-72">
+                        <header className="h-20 bg-white border-b px-10 flex items-center justify-between sticky top-0 z-50">
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Database Engine / {tab}</span>
+                            <div className="flex items-center gap-4">
+                                <div className="text-right leading-none"><p className="text-[10px] font-black text-slate-900 uppercase">{user.displayName}</p><p className="text-[8px] font-black text-green-500 uppercase tracking-widest mt-1">Malik Account</p></div>
+                                <img src={user.photoURL} className="w-10 h-10 rounded-2xl border-2 border-white shadow-sm" />
+                            </div>
+                        </header>
+
+                        <div className="p-10 animate-in fade-in duration-500">
+                            {tab === 'dashboard' && <div className="grid grid-cols-4 gap-6">
+                                <Stat l="Total Students" v={counts.u} i={Users} c="bg-blue-600" />
+                                <Stat l="Live Courses" v={counts.c} i={BookOpen} c="bg-orange-600" />
+                                <Stat l="Banners" v={counts.b} i={Image} c="bg-purple-600" />
+                                <Stat l="Broadcasts" v={counts.n} i={Bell} c="bg-rose-600" />
+                            </div>}
+                            
+                            {tab === 'chats' && <ChatSystem db={db} />}
+                            {['courses', 'banners', 'notifications'].includes(tab) && <Manager type={tab} db={db} />}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Stat = ({l,v,i:Icon,c}) => (
+            <div className="admin-card p-8"><div className={`${c} w-12 h-12 rounded-2xl flex items-center justify-center text-white mb-6 shadow-lg shadow-slate-100`}><Icon size={24}/></div><p className="text-slate-400 text-[10px] font-black uppercase tracking-widest leading-none">{l}</p><h3 className="text-4xl font-black text-slate-900 mt-2">{v}</h3></div>
+        );
+
+        const Manager = ({ type, db }) => {
+            const [items, setItems] = useState([]);
+            const [form, setForm] = useState({});
+            const [eid, setEid] = useState(null);
+
+            useEffect(() => {
+                return onSnapshot(query(collection(db, type), orderBy("createdAt", "desc")), s => setItems(s.docs.map(d=>({id:d.id, ...d.data()}))));
+            }, [type]);
+
+            const save = async () => {
+                const data = { ...form, updatedAt: serverTimestamp() };
+                if(!eid) { data.createdAt = serverTimestamp(); await addDoc(collection(db, type), data); }
+                else { await updateDoc(doc(db, type, eid), data); }
+                setForm({}); setEid(null); alert("App Updated! ✅");
+            };
+
+            return (
+                <div className="space-y-8">
+                    <div className="admin-card p-10 bg-orange-50/10 border-orange-100">
+                        <h2 className="text-xs font-black mb-8 uppercase flex items-center gap-3 text-orange-600 tracking-widest">Update {type} Collection</h2>
+                        <div className="grid grid-cols-2 gap-4">
+                            {type === 'courses' ? (
+                                <><input className="input-box" placeholder="Course Title" value={form.title||''} onChange={e=>setForm({...form, title:e.target.value})}/><input className="input-box" placeholder="Instructor Name" value={form.instructor||''} onChange={e=>setForm({...form, instructor:e.target.value})}/><input className="input-box" placeholder="Rectangle Thumbnail URL (16:9)" value={form.thumbnail||''} onChange={e=>setForm({...form, thumbnail:e.target.value})}/><input className="input-box" placeholder="Target Website / Video Link" value={form.link||''} onChange={e=>setForm({...form, link:e.target.value})}/></>
+                            ) : type === 'banners' ? (
+                                <><input className="input-box" placeholder="Banner Image URL" value={form.imageUrl||''} onChange={e=>setForm({...form, imageUrl:e.target.value})}/><input className="input-box" placeholder="Redirect Link" value={form.link||''} onChange={e=>setForm({...form, link:e.target.value})}/></>
+                            ) : <input className="input-box col-span-2" placeholder="Write broadcast message..." value={form.message||''} onChange={e=>setForm({...form, message:e.target.value})}/>}
+                        </div>
+                        <button onClick={save} className="mt-8 bg-slate-900 text-white px-12 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:bg-black active:scale-95 transition-all">Publish to Students</button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        {items.map(it => (
+                            <div key={it.id} className="admin-card p-5 flex items-center gap-5 hover:border-orange-200 transition-all group">
+                                {(it.thumbnail || it.imageUrl) && <img src={it.thumbnail || it.imageUrl} className="w-16 h-16 rounded-2xl object-cover shadow-sm bg-slate-100" />}
+                                <div className="flex-1 min-w-0"><p className="font-bold text-sm text-slate-800 truncate">{it.title || it.message}</p><p className="text-[10px] font-black text-slate-300 mt-1 uppercase tracking-tighter italic">ID: {it.id.slice(0,10)}</p></div>
+                                <div className="flex gap-1">
+                                    <button onClick={()=>{setEid(it.id); setForm(it)}} className="p-3 text-slate-300 hover:text-orange-500 transition-all"><Edit3 size={18}/></button>
+                                    <button onClick={()=>confirm("Delete permanently?") && deleteDoc(doc(db, type, it.id))} className="p-3 text-red-300 hover:text-red-500 transition-all"><Trash2 size={18}/></button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const ChatSystem = ({ db }) => {
+            const [users, setUsers] = useState([]);
+            const [sel, setSel] = useState(null);
+            const [msgs, setMsgs] = useState([]);
+            const [txt, setTxt] = useState("");
+            const endRef = useRef(null);
+
+            useEffect(() => { onSnapshot(collection(db, "users"), s => setUsers(s.docs.map(d=>({id:d.id, ...d.data()})))); }, []);
+            useEffect(() => { if(!sel) return; return onSnapshot(query(collection(db, "chats"), where("userId", "==", sel.id), orderBy("timestamp", "asc")), s => setMsgs(s.docs.map(d=>({id:d.id, ...d.data()})))); }, [sel]);
+            useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
+
+            const send = async () => { if(!txt.trim()) return; const m = txt; setTxt(""); await addDoc(collection(db, "chats"), { userId: sel.id, message: m, sender: 'admin', timestamp: serverTimestamp() }); };
+
+            return (
+                <div className="admin-card h-[75vh] flex overflow-hidden border-orange-100/50">
+                    <div className="w-72 border-r border-slate-100 overflow-y-auto bg-slate-50/40">
+                        <div className="p-6 border-b bg-white/50"><h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Student Inbox</h3></div>
+                        {users.map(u => (
+                            <button key={u.id} onClick={()=>setSel(u)} className={`w-full p-6 text-left border-b flex items-center gap-4 transition-all ${sel?.id === u.id ? 'bg-white shadow-sm border-r-4 border-r-orange-500' : 'hover:bg-white/50'}`}>
+                                <img src={u.avatar || 'https://api.dicebear.com/7.x/big-smile/svg?seed='+u.name} className="w-10 h-10 rounded-full bg-white shadow-sm border border-slate-100" />
+                                <div className="truncate font-black text-[10px] uppercase text-slate-700 tracking-tighter">{u.name}</div>
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex-1 flex flex-col bg-white">
+                        {sel ? (
+                            <><div className="p-6 border-b flex items-center justify-between"><div><p className="text-[10px] font-black text-orange-500 uppercase tracking-widest leading-none mb-1">Live Support</p><h4 className="font-bold text-sm uppercase italic">{sel.name}</h4></div><div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div></div>
+                            <div className="flex-1 p-8 overflow-y-auto space-y-4 bg-slate-50/20">
+                                {msgs.map(m => <div key={m.id} className={`flex ${m.sender==='admin'?'justify-end':'justify-start'}`}><div className={`max-w-[75%] p-4 rounded-3xl text-xs font-bold shadow-sm ${m.sender==='admin'?'bg-slate-900 text-white rounded-br-none':'bg-white text-slate-700 rounded-tl-none border border-slate-100'}`}>{m.message}</div></div>)}
+                                <div ref={endRef} />
+                            </div>
+                            <div className="p-6 bg-white border-t flex gap-4"><input className="input-box !mb-0 shadow-sm" placeholder="Type reply message..." value={txt} onChange={e=>setTxt(e.target.value)} onKeyDown={e=>e.key==='Enter'&&send()} /><button onClick={send} className="bg-orange-600 text-white p-4 rounded-2xl shadow-xl shadow-orange-200 active:scale-90 transition-all"><Send size={20}/></button></div></>
+                        ) : <div className="m-auto opacity-10 font-black uppercase tracking-[0.5em] text-[10px] flex flex-col items-center gap-6 text-center animate-pulse"><MessageSquare size={80}/> <span>Open a conversation</span></div>}
+                    </div>
                 </div>
             );
         };
