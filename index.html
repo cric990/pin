@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>XamIQ | Nexus Admin v9</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --accent: #007AFF; --bg: #000000; --card: #0A0A0A; --border: rgba(255,255,255,0.06); }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: var(--bg); color: #fff; overflow: hidden; height: 100vh; margin: 0; }
+        
+        .tab-section { display: none !important; }
+        .tab-section.active-view { display: block !important; }
+
+        .glass { background: rgba(8, 8, 8, 0.96); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border-top: 1px solid var(--border); }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; transition: 0.2s; overflow: hidden; }
+        
+        /* Navigation Focus */
+        .nav-link { color: #555; transition: 0.3s; position: relative; }
+        .nav-link.active-nav { color: var(--accent) !important; }
+        .nav-link.active-nav i { color: var(--accent); transform: scale(1.1); }
+
+        /* Compact Inputs */
+        input, select, textarea { background: #111 !important; border: 1px solid #222 !important; color: white !important; padding: 12px !important; border-radius: 12px !important; font-size: 13px; font-weight: 600; outline: none !important; }
+        input:focus { border-color: var(--accent) !important; }
+        label { font-size: 9px; font-weight: 800; color: #444; margin-bottom: 3px; display: block; text-transform: uppercase; letter-spacing: 0.05em; margin-left: 5px; }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+
+        @media (max-width: 768px) {
+            .sidebar-desktop { display: none !important; }
+            .main-content { width: 100vw; }
+            .modal-content { height: 100%; border-radius: 0; }
+        }
+        @media (min-width: 769px) {
+            .bottom-nav { display: none; }
+            .sidebar-desktop { width: 280px; border-right: 1px solid var(--border); padding: 30px; display: flex; flex-direction: column; }
+        }
+    </style>
+</head>
+<body class="flex flex-col md:flex-row h-screen">
+
+    <!-- LOGIN PANEL -->
+    <div id="auth-screen" class="fixed inset-0 z-[2000] bg-black flex items-center justify-center p-6">
+        <div class="w-full max-w-sm text-center">
+            <div class="w-16 h-16 bg-blue-600/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-blue-500/20">
+                <i data-lucide="shield-check" class="text-blue-500 w-8 h-8"></i>
+            </div>
+            <h1 class="text-3xl font-black italic tracking-tighter mb-1">XamIQ <span class="text-blue-500">PRO</span></h1>
+            <p class="text-[8px] font-black uppercase text-neutral-600 tracking-[0.3em] mb-10">Nexus Security Console</p>
+            <div class="space-y-3">
+                <input type="email" id="email" placeholder="Admin Email" class="text-center">
+                <input type="password" id="password" placeholder="Password" class="text-center">
+                <button onclick="Nexus.login()" id="login-btn" class="w-full py-4 bg-blue-600 rounded-2xl font-bold uppercase tracking-widest text-[10px] shadow-lg shadow-blue-500/20 active:scale-95 transition-all">Verify & Unlock</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SIDEBAR (DESKTOP ONLY) -->
+    <aside class="sidebar-desktop bg-[#050505] h-full">
+        <div class="flex items-baseline font-black text-2xl italic tracking-tighter mb-12">
+            <span class="text-white">Xam</span><span class="text-blue-500">IQ</span>
+        </div>
+        <nav class="flex-1 space-y-2">
+            <button onclick="Nexus.switchTab('overview')" class="nav-link w-full flex items-center gap-4 p-4 text-[10px] font-black uppercase tracking-widest active-nav" data-tab="overview"><i data-lucide="layout-grid" class="w-4 h-4"></i> Overview</button>
+            <button onclick="Nexus.switchTab('requests')" class="nav-link w-full flex items-center gap-4 p-4 text-[10px] font-black uppercase tracking-widest" data-tab="requests"><i data-lucide="users" class="w-4 h-4"></i> Batch Joins</button>
+            <button onclick="Nexus.switchTab('courses')" class="nav-link w-full flex items-center gap-4 p-4 text-[10px] font-black uppercase tracking-widest" data-tab="courses"><i data-lucide="book-open" class="w-4 h-4"></i> Library</button>
+            <button onclick="Nexus.switchTab('posters')" class="nav-link w-full flex items-center gap-4 p-4 text-[10px] font-black uppercase tracking-widest" data-tab="posters"><i data-lucide="image" class="w-4 h-4"></i> Banners</button>
+            <button onclick="Nexus.switchTab('alerts')" class="nav-link w-full flex items-center gap-4 p-4 text-[10px] font-black uppercase tracking-widest" data-tab="alerts"><i data-lucide="bell" class="w-4 h-4"></i> Alerts</button>
+        </nav>
+        <button onclick="Nexus.logout()" class="p-4 rounded-xl bg-red-600/5 text-red-500 font-bold text-[9px] uppercase flex items-center justify-center gap-2 hover:bg-red-500 hover:text-white transition-all"><i data-lucide="power" class="w-3 h-3"></i> Logoff</button>
+    </aside>
+
+    <!-- MAIN BODY -->
+    <div id="main-app" class="hidden flex-1 flex flex-col overflow-hidden relative main-content">
+        <header class="p-6 flex justify-between items-center border-b border-white/5 bg-black/50 backdrop-blur-xl sticky top-0 z-[100]">
+            <div class="flex flex-col">
+                <h2 id="view-title" class="text-lg font-black uppercase italic tracking-tighter">Overview</h2>
+                <span class="text-[7px] text-blue-500 font-black uppercase tracking-widest">Real-time Cloud Node</span>
+            </div>
+            <div id="header-action"></div>
+        </header>
+
+        <main class="flex-1 overflow-y-auto no-scrollbar p-5 md:p-10 pb-32">
+            <!-- OVERVIEW -->
+            <section id="view-overview" class="tab-section active-view space-y-4">
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div class="card p-6 border-blue-500/10">
+                        <p class="text-[8px] font-black text-neutral-500 uppercase tracking-widest mb-1">Live Students</p>
+                        <h3 id="stat-users" class="text-4xl font-black italic tracking-tighter">486<span class="text-blue-500">+</span></h3>
+                    </div>
+                    <div class="card p-6 border-white/5">
+                        <p class="text-[8px] font-black text-neutral-500 uppercase tracking-widest mb-1">Total Courses</p>
+                        <h3 id="stat-courses" class="text-4xl font-black italic tracking-tighter text-blue-500">0</h3>
+                    </div>
+                    <div class="card p-6 border-white/5 col-span-2 md:col-span-1">
+                        <p class="text-[8px] font-black text-neutral-500 uppercase tracking-widest mb-1">New Batch Requests</p>
+                        <h3 id="stat-subs" class="text-4xl font-black italic tracking-tighter text-red-500">0</h3>
+                    </div>
+                </div>
+            </section>
+
+            <!-- REQUESTS -->
+            <section id="view-requests" class="tab-section space-y-3"></section>
+
+            <!-- LIBRARY (COURSES) -->
+            <section id="view-courses" class="tab-section grid grid-cols-1 md:grid-cols-3 gap-4"></section>
+
+            <!-- BANNERS (POSTERS) -->
+            <section id="view-posters" class="tab-section grid grid-cols-1 md:grid-cols-2 gap-4"></section>
+
+            <!-- ALERTS (NOTIFICATIONS) -->
+            <section id="view-alerts" class="tab-section space-y-3"></section>
+        </main>
+
+        <!-- BOTTOM NAV (MOBILE ONLY) -->
+        <nav class="bottom-nav glass fixed bottom-0 left-0 right-0 h-20 flex items-center justify-around z-50">
+            <button onclick="Nexus.switchTab('overview')" class="nav-link flex flex-col items-center gap-1 active-nav" data-tab-mobile="overview"><i data-lucide="layout-grid" class="w-5 h-5"></i><span class="text-[7px] font-black uppercase">Home</span></button>
+            <button onclick="Nexus.switchTab('requests')" class="nav-link flex flex-col items-center gap-1" data-tab-mobile="requests"><i data-lucide="users" class="w-5 h-5"></i><span class="text-[7px] font-black uppercase">Batch</span></button>
+            <button onclick="Nexus.switchTab('courses')" class="nav-link flex flex-col items-center gap-1" data-tab-mobile="courses"><i data-lucide="book-open" class="w-5 h-5"></i><span class="text-[7px] font-black uppercase">Library</span></button>
+            <button onclick="Nexus.switchTab('posters')" class="nav-link flex flex-col items-center gap-1" data-tab-mobile="posters"><i data-lucide="image" class="w-5 h-5"></i><span class="text-[7px] font-black uppercase">Banner</span></button>
+            <button onclick="Nexus.switchTab('alerts')" class="nav-link flex flex-col items-center gap-1" data-tab-mobile="alerts"><i data-lucide="bell" class="w-5 h-5"></i><span class="text-[7px] font-black uppercase">Alert</span></button>
+        </nav>
+    </div>
+
+    <!-- GLOBAL DATA MODAL -->
+    <div id="data-modal" class="fixed inset-0 z-[1000] bg-black/98 hidden items-center justify-center p-0 md:p-6 backdrop-blur-xl">
+        <div class="modal-content w-full max-w-lg card p-8 relative flex flex-col border-white/10 shadow-2xl">
+            <button onclick="Nexus.closeModal()" class="absolute top-8 right-8 text-neutral-500 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            <h3 id="modal-head" class="text-2xl font-black uppercase italic mb-8 tracking-tighter">Sync Console</h3>
+            
+            <div id="modal-form" class="space-y-4 flex-1 overflow-y-auto no-scrollbar">
+                <!-- Specialized Containers to prevent mixing -->
+                <div id="group-course" class="hidden space-y-3">
+                    <div><label>Course Title</label><input id="c-name" placeholder="Title"></div>
+                    <div><label>Teacher</label><input id="c-instr" placeholder="Instructor"></div>
+                    <div><label>Thumbnail Link</label><input id="c-thumb" placeholder="https://..."></div>
+                    <div><label>Direct Stream URL</label><input id="c-link" placeholder="Embed or Link"></div>
+                    <div><label>Category</label><select id="c-cat"><option>Physics</option><option>Maths</option><option>General Studies</option><option>Premium</option></select></div>
+                </div>
+                <div id="group-poster" class="hidden space-y-3">
+                    <div><label>Banner Headline</label><input id="s-title" placeholder="Add Title"></div>
+                    <div><label>Image Link (Widescreen)</label><input id="s-img" placeholder="https://..."></div>
+                    <div><label>Redirect Link</label><input id="s-red" placeholder="Action Link"></div>
+                </div>
+                <div id="group-alert" class="hidden space-y-3">
+                    <div><label>Alert Title</label><input id="a-title" placeholder="Important Update"></div>
+                    <div><label>Message Content</label><textarea id="a-msg" placeholder="Write details here..." class="w-full h-32 bg-[#111] border border-[#222] rounded-xl p-4 text-[13px] font-bold text-white outline-none"></textarea></div>
+                    <div><label>Action Link</label><input id="a-link" placeholder="Redirect URL"></div>
+                </div>
+            </div>
+            <button id="modal-save-btn" class="w-full py-5 bg-blue-600 rounded-2xl font-black uppercase text-[10px] tracking-widest mt-8 shadow-xl shadow-blue-500/20 active:scale-95 transition-all">Publish Live</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAqMcBaKizRjg668AUM6CNWGYEJr5Ncd58",
+            authDomain: "banty-live.firebaseapp.com",
+            projectId: "banty-live",
+            storageBucket: "banty-live.firebasestorage.app",
+            messagingSenderId: "435477036444",
+            appId: "1:435477036444:web:3340a16fd29c4e4f269c59"
+        };
+
+        const fb = initializeApp(firebaseConfig);
+        const db = getFirestore(fb);
+        const auth = getAuth(fb);
+
+        window.Nexus = {
+            activeId: null, activeCol: null,
+
+            login: async () => {
+                const e = document.getElementById('email').value;
+                const p = document.getElementById('password').value;
+                const btn = document.getElementById('login-btn');
+                if(!e || !p) return;
+                btn.innerText = "AUTHENTICATING...";
+                try { await signInWithEmailAndPassword(auth, e, p); } catch(err) { alert("DENIED: Unauthorized"); btn.innerText = "Login System"; }
+            },
+
+            logout: () => signOut(auth),
+
+            switchTab: (tabId) => {
+                document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active-view'));
+                document.getElementById(`view-${tabId}`).classList.add('active-view');
+                
+                document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active-nav'));
+                document.querySelectorAll(`[data-tab="${tabId}"]`).forEach(el => el.classList.add('active-nav'));
+                document.querySelectorAll(`[data-tab-mobile="${tabId}"]`).forEach(el => el.classList.add('active-nav'));
+                
+                document.getElementById('view-title').innerText = tabId.toUpperCase();
+                
+                const act = document.getElementById('header-action');
+                act.innerHTML = '';
+                if(tabId === 'courses') act.innerHTML = `<button onclick="Nexus.openCourseModal()" class="px-4 py-2 bg-blue-600 rounded-xl text-[9px] font-black uppercase">+ Course</button>`;
+                if(tabId === 'posters') act.innerHTML = `<button onclick="Nexus.openPosterModal()" class="px-4 py-2 bg-blue-600 rounded-xl text-[9px] font-black uppercase">+ Poster</button>`;
+                if(tabId === 'alerts') act.innerHTML = `<button onclick="Nexus.openAlertModal()" class="px-4 py-2 bg-red-600 rounded-xl text-[9px] font-black uppercase">+ Alert</button>`;
+                lucide.createIcons();
+            },
+
+            closeModal: () => document.getElementById('data-modal').classList.add('hidden'),
+
+            resetGroups: () => {
+                document.getElementById('group-course').classList.add('hidden');
+                document.getElementById('group-poster').classList.add('hidden');
+                document.getElementById('group-alert').classList.add('hidden');
+            },
+
+            openCourseModal: (data = null) => {
+                Nexus.resetGroups();
+                Nexus.activeCol = 'courses'; Nexus.activeId = data ? data.id : null;
+                document.getElementById('modal-head').innerText = data ? "Edit Library" : "+ Batch";
+                document.getElementById('group-course').classList.remove('hidden');
+                if(data) {
+                    document.getElementById('c-name').value = data.name;
+                    document.getElementById('c-instr').value = data.instructor;
+                    document.getElementById('c-thumb').value = data.thumbnail;
+                    document.getElementById('c-link').value = data.link;
+                    document.getElementById('c-cat').value = data.category;
+                } else {
+                    document.querySelectorAll('#group-course input').forEach(i => i.value = '');
+                }
+                document.getElementById('modal-save-btn').onclick = Nexus.saveData;
+                document.getElementById('data-modal').classList.remove('hidden');
+            },
+
+            openPosterModal: (data = null) => {
+                Nexus.resetGroups();
+                Nexus.activeCol = 'sliders'; Nexus.activeId = data ? data.id : null;
+                document.getElementById('modal-head').innerText = data ? "Edit Banner" : "New Banner";
+                document.getElementById('group-poster').classList.remove('hidden');
+                if(data) {
+                    document.getElementById('s-title').value = data.title;
+                    document.getElementById('s-img').value = data.image;
+                    document.getElementById('s-red').value = data.redirect;
+                } else {
+                    document.querySelectorAll('#group-poster input').forEach(i => i.value = '');
+                }
+                document.getElementById('modal-save-btn').onclick = Nexus.saveData;
+                document.getElementById('data-modal').classList.remove('hidden');
+            },
+
+            openAlertModal: () => {
+                Nexus.resetGroups();
+                Nexus.activeCol = 'alerts'; Nexus.activeId = null;
+                document.getElementById('modal-head').innerText = "Send notifications";
+                document.getElementById('group-alert').classList.remove('hidden');
+                document.querySelectorAll('#group-alert input, #group-alert textarea').forEach(i => i.value = '');
+                document.getElementById('modal-save-btn').onclick = Nexus.saveData;
+                document.getElementById('data-modal').classList.remove('hidden');
+            },
+
+            saveData: async () => {
+                const btn = document.getElementById('modal-save-btn');
+                btn.innerText = "UPLOADING...";
+                let payload = { timestamp: new Date().toISOString() };
+                try {
+                    if(Nexus.activeCol === 'courses') {
+                        payload = { ...payload, name: document.getElementById('c-name').value, instructor: document.getElementById('c-instr').value, thumbnail: document.getElementById('c-thumb').value, link: document.getElementById('c-link').value, category: document.getElementById('c-cat').value };
+                    } else if(Nexus.activeCol === 'sliders') {
+                        payload = { ...payload, title: document.getElementById('s-title').value, image: document.getElementById('s-img').value, redirect: document.getElementById('s-red').value };
+                    } else if(Nexus.activeCol === 'alerts') {
+                        payload = { ...payload, title: document.getElementById('a-title').value, message: document.getElementById('a-msg').value, link: document.getElementById('a-link').value };
+                    }
+                    if(Nexus.activeId) await updateDoc(doc(db, Nexus.activeCol, Nexus.activeId), payload);
+                    else await addDoc(collection(db, Nexus.activeCol), payload);
+                    Nexus.closeModal();
+                } catch(e) { alert("ERROR Syncing Data"); }
+                btn.innerText = "Publish Live";
+            },
+
+            deleteItem: async (col, id) => {
+                if(confirm("Confirm deletion?")) await deleteDoc(doc(db, col, id));
+            }
+        };
+
+        onAuthStateChanged(auth, u => {
+            if(u) {
+                document.getElementById('auth-screen').classList.add('hidden');
+                document.getElementById('main-app').classList.remove('hidden');
+                Nexus.switchTab('overview');
+                
+                // Real-time Syncing Logic
+                onSnapshot(query(collection(db, 'submissions'), orderBy('timestamp', 'desc')), snap => {
+                    const div = document.getElementById('view-requests');
+                    document.getElementById('stat-subs').innerText = snap.size;
+                    div.innerHTML = '';
+                    snap.forEach(d => {
+                        const s = d.data();
+                        div.innerHTML += `
+                        <div class="card p-5 flex justify-between items-center group">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-1"><span class="bg-blue-600 text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase">${s.batch}</span><span class="text-[7px] opacity-30 font-bold uppercase">${new Date(s.timestamp).toLocaleString()}</span></div>
+                                <h4 class="text-xl font-bold italic tracking-tighter">${s.identifier || s.token}</h4>
+                                <p class="text-[8px] font-black text-blue-500 uppercase tracking-widest">Enrolled: ${s.userName}</p>
+                            </div>
+                            <button onclick="Nexus.deleteItem('submissions', '${d.id}')" class="text-red-500 p-2"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                        </div>`;
+                    });
+                    lucide.createIcons();
+                });
+
+                onSnapshot(collection(db, 'courses'), snap => {
+                    const div = document.getElementById('view-courses');
+                    document.getElementById('stat-courses').innerText = snap.size;
+                    div.innerHTML = '';
+                    snap.forEach(d => {
+                        const c = d.data();
+                        div.innerHTML += `
+                        <div class="card overflow-hidden">
+                            <img src="${c.thumbnail}" class="w-full aspect-video object-cover">
+                            <div class="p-4">
+                                <span class="text-[7px] font-black text-blue-500 uppercase">${c.category}</span>
+                                <h4 class="font-bold text-sm uppercase truncate mb-3">${c.name}</h4>
+                                <div class="flex gap-2">
+                                    <button onclick='Nexus.openCourseModal(${JSON.stringify({...c, id: d.id}).replace(/'/g, "&apos;")})' class="flex-1 py-1.5 bg-white/5 rounded-lg text-[8px] font-black uppercase border border-white/5">Edit</button>
+                                    <button onclick="Nexus.deleteItem('courses', '${d.id}')" class="p-2 bg-red-600/10 text-red-500 rounded-lg"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                </div>
+                            </div>
+                        </div>`;
+                    });
+                    lucide.createIcons();
+                });
+
+                onSnapshot(collection(db, 'sliders'), snap => {
+                    const div = document.getElementById('view-posters');
+                    div.innerHTML = '';
+                    snap.forEach(d => {
+                        const s = d.data();
+                        div.innerHTML += `
+                        <div class="card overflow-hidden h-44 relative group">
+                            <img src="${s.image}" class="w-full h-full object-cover">
+                            <div class="absolute inset-0 bg-black/50 p-4 flex flex-col justify-end">
+                                <h4 class="text-[11px] font-black uppercase italic">${s.title}</h4>
+                                <div class="flex gap-2 mt-3">
+                                    <button onclick='Nexus.openPosterModal(${JSON.stringify({...s, id: d.id}).replace(/'/g, "&apos;")})' class="flex-1 py-1.5 bg-white/20 rounded-lg text-[8px] font-black uppercase">Edit</button>
+                                    <button onclick="Nexus.deleteItem('sliders', '${d.id}')" class="p-1.5 bg-red-600 rounded-lg"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                                </div>
+                            </div>
+                        </div>`;
+                    });
+                    lucide.createIcons();
+                });
+
+                onSnapshot(query(collection(db, 'alerts'), orderBy('timestamp', 'desc')), snap => {
+                    const div = document.getElementById('view-alerts');
+                    div.innerHTML = '';
+                    snap.forEach(d => {
+                        const a = d.data();
+                        div.innerHTML += `<div class="card p-5 flex justify-between items-center"><div><h4 class="text-[8px] font-black text-red-500 uppercase mb-1">${a.title}</h4><p class="text-[13px] font-bold opacity-60">${a.message}</p></div><button onclick="Nexus.deleteItem('alerts', '${d.id}')" class="text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>`;
+                    });
+                    lucide.createIcons();
+                });
+
+                onSnapshot(collection(db, 'users'), s => { if(s.size > 0) document.getElementById('stat-users').innerText = s.size; });
+            } else {
+                document.getElementById('auth-screen').classList.remove('hidden');
+                document.getElementById('main-app').classList.add('hidden');
+            }
+        });
+
+        lucide.createIcons();
+    </script>
+</body>
+</html>
